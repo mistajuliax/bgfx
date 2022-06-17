@@ -74,7 +74,7 @@ def git_executable():
     for git in searchlist:
       try:
         subprocess.call([git, '--version'], stdout=devnull)
-      except (OSError,):
+      except OSError:
         continue
       return git
   return None
@@ -87,12 +87,12 @@ DEFAULT_DEPS_PATH = os.path.normpath(
 def usage(deps_file_path = None):
   sys.stderr.write(
     'Usage: run to grab dependencies, with optional platform support:\n')
-  sys.stderr.write('  %s %s' % (sys.executable, __file__))
+  sys.stderr.write(f'  {sys.executable} {__file__}')
   if deps_file_path:
     parsed_deps = parse_file_to_dict(deps_file_path)
     if 'deps_os' in parsed_deps:
       for deps_os in parsed_deps['deps_os']:
-        sys.stderr.write(' [%s]' % deps_os)
+        sys.stderr.write(f' [{deps_os}]')
   sys.stderr.write('\n\n')
   sys.stderr.write(__doc__)
 
@@ -125,7 +125,7 @@ def is_git_toplevel(git, directory):
 
 def status(directory, checkoutable):
   def truncate(s, length):
-    return s if len(s) <= length else s[:(length - 3)] + '...'
+    return s if len(s) <= length else f'{s[:(length - 3)]}...'
   dlen = 36
   directory = truncate(directory, dlen)
   checkoutable = truncate(checkoutable, 40)
@@ -169,8 +169,11 @@ def git_checkout_to_directory(git, repo, checkoutable, directory, verbose):
   with open(os.devnull, 'w') as devnull:
     # If this fails, we will fetch before trying again.  Don't spam user
     # with error infomation.
-    if 0 == subprocess.call([git, 'checkout', '--quiet', checkoutable],
-                            cwd=directory, stderr=devnull):
+    if (subprocess.call(
+        [git, 'checkout', '--quiet', checkoutable],
+        cwd=directory,
+        stderr=devnull,
+    ) == 0):
       # if this succeeds, skip slow `git fetch`.
       if verbose:
         status(directory, checkoutable)  # Success.
@@ -229,7 +232,7 @@ def git_sync_deps(deps_file_path, command_line_os_requests, verbose):
         dependencies.update(os_specific_dependencies[os_name])
   for directory in dependencies:
     for other_dir in dependencies:
-      if directory.startswith(other_dir + '/'):
+      if directory.startswith(f'{other_dir}/'):
         raise Exception('%r is parent of %r' % (other_dir, directory))
   list_of_arg_lists = []
   for directory in sorted(dependencies):

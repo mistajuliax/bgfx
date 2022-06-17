@@ -29,20 +29,17 @@ def generate_vendor_table(registry):
 
     lines = []
     for ids in registry.iter('ids'):
-        if 'vendor' == ids.attrib['type']:
+        if ids.attrib['type'] == 'vendor':
             for an_id in ids.iter('id'):
                 value = an_id.attrib['value']
                 vendor = an_id.attrib['vendor']
                 if 'tool' in an_id.attrib:
                     tool = an_id.attrib['tool']
-                    vendor_tool = vendor + ' ' + tool
+                    vendor_tool = f'{vendor} {tool}'
                 else:
                     tool = ''
                     vendor_tool = vendor
-                line = '{' + '{}, "{}", "{}", "{}"'.format(value,
-                                                           vendor,
-                                                           tool,
-                                                           vendor_tool) + '},'
+                line = (('{' + f'{value}, "{vendor}", "{tool}", "{vendor_tool}"') + '},')
                 lines.append(line)
     return '\n'.join(lines)
 

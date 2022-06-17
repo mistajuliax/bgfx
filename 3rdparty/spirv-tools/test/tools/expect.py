@@ -30,8 +30,7 @@ DEFAULT_SPIRV_VERSION = 0x010000
 
 def convert_to_unix_line_endings(source):
   """Converts all line endings in source to be unix line endings."""
-  result = source.replace('\r\n', '\n').replace('\r', '\n')
-  return result
+  return source.replace('\r\n', '\n').replace('\r', '\n')
 
 
 def substitute_file_extension(filename, extension):
@@ -47,7 +46,7 @@ def substitute_file_extension(filename, extension):
   ]:
     return filename.rsplit('.', 1)[0] + '.' + extension
   else:
-    return filename + '.' + extension
+    return f'{filename}.{extension}'
 
 
 def get_object_filename(source_filename):
@@ -63,9 +62,9 @@ def get_assembly_filename(source_filename):
 def verify_file_non_empty(filename):
   """Checks that a given file exists and is not empty."""
   if not os.path.isfile(filename):
-    return False, 'Cannot find file: ' + filename
+    return False, f'Cannot find file: {filename}'
   if not os.path.getsize(filename):
-    return False, 'Empty file: ' + filename
+    return False, f'Empty file: {filename}'
   return True, ''
 
 
@@ -83,9 +82,7 @@ class ReturnCodeIsNonZero(SpirvTest):
   """Mixin class for checking that the return code is not zero."""
 
   def check_return_code_is_nonzero(self, status):
-    if not status.returncode:
-      return False, 'return code is 0'
-    return True, ''
+    return (True, '') if status.returncode else (False, 'return code is 0')
 
 
 class NoOutputOnStdout(SpirvTest):
@@ -118,13 +115,13 @@ class NoGeneratedFiles(SpirvTest):
   def check_no_generated_files(self, status):
     all_files = os.listdir(status.directory)
     input_files = status.input_filenames
-    if all([f.startswith(status.directory) for f in input_files]):
+    if all(f.startswith(status.directory) for f in input_files):
       all_files = [os.path.join(status.directory, f) for f in all_files]
     generated_files = set(all_files) - set(input_files)
     if len(generated_files) == 0:
       return True, ''
     else:
-      return False, 'Extra files generated: {}'.format(generated_files)
+      return False, f'Extra files generated: {generated_files}'
 
 
 class CorrectBinaryLengthAndPreamble(SpirvTest):
@@ -344,7 +341,7 @@ class ValidFileContents(SpirvTest):
   def check_file(self, status):
     target_filename = os.path.join(status.directory, self.target_filename)
     if not os.path.isfile(target_filename):
-      return False, 'Cannot find file: ' + target_filename
+      return False, f'Cannot find file: {target_filename}'
     with open(target_filename, 'r') as target_file:
       file_contents = target_file.read()
       if isinstance(self.expected_file_contents, str):
@@ -369,8 +366,7 @@ class ValidFileContents(SpirvTest):
                        'Expected matching regex pattern:\n{exp}'.format(
                            act=file_contents,
                            exp=self.expected_file_contents.pattern))
-    return False, (
-        'Could not open target file ' + target_filename + ' for reading')
+    return False, f'Could not open target file {target_filename} for reading'
 
 
 class ValidAssemblyFile(SuccessfulReturn, CorrectAssemblyFilePreamble):
@@ -628,12 +624,11 @@ class StderrMatch(SpirvTest):
         return False, ('Incorrect stderr output:\n{ac}\n'
                        'Expected:\n{ex}'.format(
                            ac=status.stderr, ex=self.expected_stderr))
-    else:
-      if not self.expected_stderr.search(
+    elif not self.expected_stderr.search(
           convert_to_unix_line_endings(status.stderr.decode('utf8'))):
-        return False, ('Incorrect stderr output:\n{ac}\n'
-                       'Expected to match regex:\n{ex}'.format(
-                           ac=status.stderr, ex=self.expected_stderr.pattern))
+      return False, ('Incorrect stderr output:\n{ac}\n'
+                     'Expected to match regex:\n{ex}'.format(
+                         ac=status.stderr, ex=self.expected_stderr.pattern))
     return True, ''
 
 
@@ -645,13 +640,11 @@ class StdoutNoWiderThan80Columns(SpirvTest):
     """
 
   def check_stdout_not_too_wide(self, status):
-    if not status.stdout:
-      return True, ''
-    else:
-      for line in status.stdout.splitlines():
-        if len(line) > 80:
-          return False, ('Stdout line longer than 80 columns: %s' % line)
-    return True, ''
+    return (next(
+        ((False, f'Stdout line longer than 80 columns: {line}')
+         for line in status.stdout.splitlines() if len(line) > 80),
+        (True, ''),
+    ) if status.stdout else (True, ''))
 
 
 class NoObjectFile(SpirvTest):
@@ -662,10 +655,9 @@ class NoObjectFile(SpirvTest):
     for input_filename in status.input_filenames:
       object_filename = get_object_filename(input_filename)
       full_object_file = os.path.join(status.directory, object_filename)
-      print('checking %s' % full_object_file)
+      print(f'checking {full_object_file}')
       if os.path.isfile(full_object_file):
-        return False, (
-            'Expected no object file, but found: %s' % full_object_file)
+        return False, f'Expected no object file, but found: {full_object_file}'
     return True, ''
 
 
@@ -675,11 +667,12 @@ class NoNamedOutputFiles(SpirvTest):
     The expected_output_filenames member should be full pathnames."""
 
   def check_no_named_output_files(self, status):
-    for object_filename in self.expected_output_filenames:
-      if os.path.isfile(object_filename):
-        return False, (
-            'Expected no output file, but found: %s' % object_filename)
-    return True, ''
+    return next(
+        ((False, f'Expected no output file, but found: {object_filename}')
+         for object_filename in self.expected_output_filenames
+         if os.path.isfile(object_filename)),
+        (True, ''),
+    )
 
 
 class ExecutedListOfPasses(SpirvTest):
@@ -696,13 +689,14 @@ class ExecutedListOfPasses(SpirvTest):
     pass_names = []
     pass_name_re = re.compile(r'.*IR before pass (?P<pass_name>[\S]+)')
     for line in status.stderr.decode('utf8').splitlines():
-      match = pass_name_re.match(line)
-      if match:
-        pass_names.append(match.group('pass_name'))
+      if match := pass_name_re.match(line):
+        pass_names.append(match['pass_name'])
 
-    for (expected, actual) in zip(self.expected_passes, pass_names):
-      if expected != actual:
-        return False, (
-            'Expected pass "%s" but found pass "%s"\n' % (expected, actual))
-
-    return True, ''
+    return next(
+        ((
+            False,
+            'Expected pass "%s" but found pass "%s"\n' % (expected, actual),
+        ) for expected, actual in zip(self.expected_passes, pass_names)
+         if expected != actual),
+        (True, ''),
+    )

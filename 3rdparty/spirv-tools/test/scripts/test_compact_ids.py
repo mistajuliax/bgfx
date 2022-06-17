@@ -24,16 +24,13 @@ def test_spirv_file(path, temp_dir):
   converted_spv_path = os.path.join(temp_dir, 'converted.spv')
   converted_dis_path = os.path.join(temp_dir, 'converted.dis')
 
-  os.system('tools/spirv-opt ' + path + ' -o ' + optimized_spv_path +
-            ' --compact-ids')
-  os.system('tools/spirv-dis ' + optimized_spv_path + ' -o ' +
-            optimized_dis_path)
+  os.system(
+      (f'tools/spirv-opt {path} -o {optimized_spv_path}' + ' --compact-ids'))
+  os.system((f'tools/spirv-dis {optimized_spv_path} -o ' + optimized_dis_path))
 
-  os.system('tools/spirv-dis ' + path + ' -o ' + converted_dis_path)
-  os.system('tools/spirv-as ' + converted_dis_path + ' -o ' +
-            converted_spv_path)
-  os.system('tools/spirv-dis ' + converted_spv_path + ' -o ' +
-            converted_dis_path)
+  os.system(f'tools/spirv-dis {path} -o {converted_dis_path}')
+  os.system((f'tools/spirv-as {converted_dis_path} -o ' + converted_spv_path))
+  os.system((f'tools/spirv-dis {converted_spv_path} -o ' + converted_dis_path))
 
   with open(converted_dis_path, 'r') as f:
     converted_dis = f.readlines()[3:]
@@ -84,13 +81,13 @@ def main():
   for path in paths:
     success = test_spirv_file(path, temp_dir)
     if not success:
-      print('Test failed for ' + path)
+      print(f'Test failed for {path}')
       num_failed += 1
 
-  print('Tested ' + str(len(paths)) + ' files')
+  print(f'Tested {len(paths)} files')
 
   if num_failed:
-    print(str(num_failed) + ' tests failed')
+    print(f'{str(num_failed)} tests failed')
     exit(1)
   else:
     print('All tests successful')

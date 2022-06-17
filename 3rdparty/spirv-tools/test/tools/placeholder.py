@@ -109,7 +109,7 @@ class ConfigFlagsFile(PlaceHolder):
     fd = os.fdopen(temp_fd, 'w')
     fd.write(self.content)
     fd.close()
-    return '-Oconfig=%s' % self.filename
+    return f'-Oconfig={self.filename}'
 
   def instantiate_for_expectation(self, testcase):
     assert self.filename is not None
@@ -140,7 +140,7 @@ class FileSPIRVShader(PlaceHolder):
     shader_object = os.fdopen(shader, 'w')
     shader_object.write(self.source)
     shader_object.close()
-    self.filename = '%s.spv' % asm_filename
+    self.filename = f'{asm_filename}.spv'
     cmd = [
         testcase.test_manager.assembler_path, asm_filename, '-o', self.filename
     ]

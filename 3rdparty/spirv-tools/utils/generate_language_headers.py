@@ -31,9 +31,7 @@ def make_path_to_file(f):
     try:
         os.makedirs(dir)
     except OSError as e:
-        if e.errno == errno.EEXIST and os.path.isdir(dir):
-            pass
-        else:
+        if e.errno != errno.EEXIST or not os.path.isdir(dir):
             raise
 
 class ExtInstGrammar:
@@ -53,7 +51,6 @@ class LangGenerator:
 
     def __init__(self):
         self.upper_case_initial = re.compile('^[A-Z]')
-        pass
 
     def comment_prefix(self):
         return ""
@@ -71,29 +68,21 @@ class LangGenerator:
         return ""
 
     def enum_value(self, prefix, name, value):
-        if self.upper_case_initial.match(name):
-            use_name = name
-        else:
-            use_name = '_' + name
-
-        return "    {}{} = {},".format(prefix, use_name, value)
+        use_name = name if self.upper_case_initial.match(name) else f'_{name}'
+        return f"    {prefix}{use_name} = {value},"
 
     def generate(self, grammar):
         """Returns a string that is the language-specific header for the given grammar"""
 
         parts = []
         if grammar.copyright:
-            parts.extend(["{}{}".format(self.comment_prefix(), f) for f in grammar.copyright])
+            parts.extend([f"{self.comment_prefix()}{f}" for f in grammar.copyright])
         parts.append('')
 
-        guard = 'SPIRV_EXTINST_{}_H_'.format(grammar.name)
+        guard = f'SPIRV_EXTINST_{grammar.name}_H_'
         if self.uses_guards:
-            parts.append('#ifndef {}'.format(guard))
-            parts.append('#define {}'.format(guard))
-        parts.append('')
-
-        parts.append(self.cpp_guard_preamble())
-
+            parts.extend((f'#ifndef {guard}', f'#define {guard}'))
+        parts.extend(('', self.cpp_guard_preamble()))
         if grammar.version:
             parts.append(self.const_definition(grammar.name, 'Version', grammar.version))
 
@@ -104,23 +93,27 @@ class LangGenerator:
 
         if grammar.instructions:
             parts.append(self.enum_prefix(grammar.name, 'Instructions'))
-            for inst in grammar.instructions:
-                parts.append(self.enum_value(grammar.name, inst['opname'], inst['opcode']))
-            parts.append(self.enum_end(grammar.name, 'Instructions'))
-            parts.append('')
+            parts.extend(
+                self.enum_value(grammar.name, inst['opname'], inst['opcode'])
+                for inst in grammar.instructions
+            )
 
+            parts.extend((self.enum_end(grammar.name, 'Instructions'), ''))
         if grammar.operand_kinds:
             for kind in grammar.operand_kinds:
                 parts.append(self.enum_prefix(grammar.name, kind['kind']))
-                for e in kind['enumerants']:
-                    parts.append(self.enum_value(grammar.name, e['enumerant'], e['value']))
+                parts.extend(
+                    self.enum_value(grammar.name, e['enumerant'], e['value'])
+                    for e in kind['enumerants']
+                )
+
                 parts.append(self.enum_end(grammar.name, kind['kind']))
             parts.append('')
 
         parts.append(self.cpp_guard_postamble())
 
         if self.uses_guards:
-            parts.append('#endif // {}'.format(guard))
+            parts.append(f'#endif // {guard}')
 
         return '\n'.join(parts)
 
@@ -179,7 +172,7 @@ def main():
                                  version = grammar_json['version'],
                                  revision = grammar_json['revision'])
         make_path_to_file(args.extinst_output_base)
-        with open(args.extinst_output_base + '.h', 'w') as f:
+        with open(f'{args.extinst_output_base}.h', 'w') as f:
             f.write(CGenerator().generate(grammar))
 
 
