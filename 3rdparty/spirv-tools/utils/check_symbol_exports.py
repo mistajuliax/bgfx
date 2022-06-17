@@ -37,7 +37,7 @@ def command_output(cmd, directory):
                          universal_newlines=True)
     (stdout, _) = p.communicate()
     if p.returncode != 0:
-        raise RuntimeError('Failed to run %s in %s' % (cmd, directory))
+        raise RuntimeError(f'Failed to run {cmd} in {directory}')
     return stdout
 
 
@@ -64,14 +64,13 @@ def check_library(library):
     seen = set()
     result = 0
     for line in command_output(['objdump', '-t', library], '.').split('\n'):
-        match = symbol_pattern.search(line)
-        if match:
-            symbol = match.group(1)
+        if match := symbol_pattern.search(line):
+            symbol = match[1]
             if symbol not in seen:
                 seen.add(symbol)
                 #print("look at '{}'".format(symbol))
                 if not (symbol_whitelist_pattern.match(symbol) or symbol_ok_pattern.match(symbol)):
-                    print('{}: error: Unescaped exported symbol: {}'.format(PROG, symbol))
+                    print(f'{PROG}: error: Unescaped exported symbol: {symbol}')
                     result = 1
     return result
 
@@ -83,7 +82,7 @@ def main():
     args = parser.parse_args()
 
     if not os.path.isfile(args.library):
-        print('{}: error: {} does not exist'.format(PROG, args.library))
+        print(f'{PROG}: error: {args.library} does not exist')
         sys.exit(1)
 
     if os.name == 'posix':

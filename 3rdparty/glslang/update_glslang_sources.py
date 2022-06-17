@@ -52,7 +52,7 @@ def command_output(cmd, directory, fail_ok=False):
                          stdout=subprocess.PIPE)
     (stdout, _) = p.communicate()
     if p.returncode != 0 and not fail_ok:
-        raise RuntimeError('Failed to run {} in {}'.format(cmd, directory))
+        raise RuntimeError(f'Failed to run {cmd} in {directory}')
     if VERBOSE:
         print(stdout)
     return stdout
@@ -101,9 +101,19 @@ class GoodCommit(object):
 
     def HasCommit(self):
         """Check if the repository contains the known-good commit."""
-        return 0 == subprocess.call(['git', 'rev-parse', '--verify', '--quiet',
-                                     self.commit + "^{commit}"],
-                                    cwd=self.subdir)
+        return (
+            subprocess.call(
+                [
+                    'git',
+                    'rev-parse',
+                    '--verify',
+                    '--quiet',
+                    self.commit + "^{commit}",
+                ],
+                cwd=self.subdir,
+            )
+            == 0
+        )
 
     def Clone(self):
         distutils.dir_util.mkpath(self.subdir)

@@ -50,9 +50,7 @@ def mkdir_p(directory):
     try:
         os.makedirs(directory)
     except OSError as e:
-        if e.errno == errno.EEXIST and os.path.isdir(directory):
-            pass
-        else:
+        if e.errno != errno.EEXIST or not os.path.isdir(directory):
             raise
 
 
@@ -69,7 +67,7 @@ def command_output(cmd, directory):
                          stderr=subprocess.PIPE)
     (stdout, _) = p.communicate()
     if p.returncode != 0:
-        raise RuntimeError('Failed to run %s in %s' % (cmd, directory))
+        raise RuntimeError(f'Failed to run {cmd} in {directory}')
     return stdout
 
 
@@ -88,10 +86,9 @@ def deduce_software_version(directory):
     changes_file = os.path.join(directory, 'CHANGES')
     with open(changes_file, mode='rU') as f:
         for line in f.readlines():
-            match = pattern.match(line)
-            if match:
-                return match.group(1)
-    raise Exception('No version number found in {}'.format(changes_file))
+            if match := pattern.match(line):
+                return match[1]
+    raise Exception(f'No version number found in {changes_file}')
 
 
 def describe(directory):
@@ -120,12 +117,12 @@ def describe(directory):
             # containing a (presumably) fixed timestamp.
             timestamp = int(os.environ.get('SOURCE_DATE_EPOCH', time.time()))
             formatted = datetime.datetime.utcfromtimestamp(timestamp).isoformat()
-            return 'unknown hash, {}'.format(formatted)
+            return f'unknown hash, {formatted}'
 
 
 def main():
     if len(sys.argv) != 3:
-        print('usage: {} <spirv-tools-dir> <output-file>'.format(sys.argv[0]))
+        print(f'usage: {sys.argv[0]} <spirv-tools-dir> <output-file>')
         sys.exit(1)
 
     output_file = sys.argv[2]

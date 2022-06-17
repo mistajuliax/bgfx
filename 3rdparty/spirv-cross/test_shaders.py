@@ -36,10 +36,10 @@ def create_temporary(suff = ''):
 
 def parse_stats(stats):
     m = re.search('([0-9]+) work registers', stats)
-    registers = int(m.group(1)) if m else 0
+    registers = int(m[1]) if m else 0
 
     m = re.search('([0-9]+) uniform registers', stats)
-    uniform_regs = int(m.group(1)) if m else 0
+    uniform_regs = int(m[1]) if m else 0
 
     m_list = re.findall('(-?[0-9]+)\s+(-?[0-9]+)\s+(-?[0-9]+)', stats)
     alu_short = float(m_list[1][0]) if m_list else 0
@@ -120,17 +120,16 @@ def path_to_msl_standard(shader):
             return '-std=ios-metal1.0'
         else:
             return '-std=ios-metal1.2'
+    elif '.msl2.' in shader:
+        return '-std=macos-metal2.0'
+    elif '.msl21.' in shader:
+        return '-std=macos-metal2.1'
+    elif '.msl22.' in shader:
+        return '-std=macos-metal2.2'
+    elif '.msl11.' in shader:
+        return '-std=macos-metal1.1'
     else:
-        if '.msl2.' in shader:
-            return '-std=macos-metal2.0'
-        elif '.msl21.' in shader:
-            return '-std=macos-metal2.1'
-        elif '.msl22.' in shader:
-            return '-std=macos-metal2.2'
-        elif '.msl11.' in shader:
-            return '-std=macos-metal1.1'
-        else:
-            return '-std=macos-metal1.2'
+        return '-std=macos-metal1.2'
 
 def path_to_msl_standard_cli(shader):
     if '.msl2.' in shader:
@@ -147,17 +146,14 @@ def path_to_msl_standard_cli(shader):
 def validate_shader_msl(shader, opt):
     msl_path = reference_path(shader[0], shader[1], opt)
     try:
-        if '.ios.' in msl_path:
-            msl_os = 'iphoneos'
-        else:
-            msl_os = 'macosx'
+        msl_os = 'iphoneos' if '.ios.' in msl_path else 'macosx'
         subprocess.check_call(['xcrun', '--sdk', msl_os, 'metal', '-x', 'metal', path_to_msl_standard(msl_path), '-Werror', '-Wno-unused-variable', msl_path])
-        print('Compiled Metal shader: ' + msl_path)   # display after so xcrun FNF is silent
+        print(f'Compiled Metal shader: {msl_path}')
     except OSError as oe:
         if (oe.errno != errno.ENOENT):   # Ignore xcrun not found error
             raise
     except subprocess.CalledProcessError:
-        print('Error compiling Metal shader: ' + msl_path)
+        print(f'Error compiling Metal shader: {msl_path}')
         raise RuntimeError('Failed to compile Metal shader')
 
 def cross_compile_msl(shader, spirv, opt, iterations, paths):
@@ -181,9 +177,20 @@ def cross_compile_msl(shader, spirv, opt, iterations, paths):
 
     spirv_cross_path = paths.spirv_cross
 
-    msl_args = [spirv_cross_path, '--entry', 'main', '--output', msl_path, spirv_path, '--msl', '--iterations', str(iterations)]
-    msl_args.append('--msl-version')
-    msl_args.append(path_to_msl_standard_cli(shader))
+    msl_args = [
+        spirv_cross_path,
+        '--entry',
+        'main',
+        '--output',
+        msl_path,
+        spirv_path,
+        '--msl',
+        '--iterations',
+        str(iterations),
+        '--msl-version',
+        path_to_msl_standard_cli(shader),
+    ]
+
     if '.swizzle.' in shader:
         msl_args.append('--msl-swizzle-texture-samples')
     if '.ios.' in shader:
@@ -205,11 +212,15 @@ def cross_compile_msl(shader, spirv, opt, iterations, paths):
     if '.emulate-cube-array.' in shader:
         msl_args.append('--msl-emulate-cube-array')
     if '.discrete.' in shader:
-        # Arbitrary for testing purposes.
-        msl_args.append('--msl-discrete-descriptor-set')
-        msl_args.append('2')
-        msl_args.append('--msl-discrete-descriptor-set')
-        msl_args.append('3')
+        msl_args.extend(
+            (
+                '--msl-discrete-descriptor-set',
+                '2',
+                '--msl-discrete-descriptor-set',
+                '3',
+            )
+        )
+
     if '.line.' in shader:
         msl_args.append('--emit-line-directives')
     if '.multiview.' in shader:
@@ -219,18 +230,26 @@ def cross_compile_msl(shader, spirv, opt, iterations, paths):
     if '.dispatchbase.' in shader:
         msl_args.append('--msl-dispatch-base')
     if '.dynamic-buffer.' in shader:
-        # Arbitrary for testing purposes.
-        msl_args.append('--msl-dynamic-buffer')
-        msl_args.append('0')
-        msl_args.append('0')
-        msl_args.append('--msl-dynamic-buffer')
-        msl_args.append('1')
-        msl_args.append('2')
+        msl_args.extend(
+            (
+                '--msl-dynamic-buffer',
+                '0',
+                '0',
+                '--msl-dynamic-buffer',
+                '1',
+                '2',
+            )
+        )
+
     if '.device-argument-buffer.' in shader:
-        msl_args.append('--msl-device-argument-buffer')
-        msl_args.append('0')
-        msl_args.append('--msl-device-argument-buffer')
-        msl_args.append('1')
+        msl_args.extend(
+            (
+                '--msl-device-argument-buffer',
+                '0',
+                '--msl-device-argument-buffer',
+                '1',
+            )
+        )
 
     subprocess.check_call(msl_args)
 
@@ -241,15 +260,9 @@ def cross_compile_msl(shader, spirv, opt, iterations, paths):
 
 def shader_model_hlsl(shader):
     if '.vert' in shader:
-        if '.sm30.' in shader:
-            return '-Tvs_3_0'
-        else:
-            return '-Tvs_5_1'
+        return '-Tvs_3_0' if '.sm30.' in shader else '-Tvs_5_1'
     elif '.frag' in shader:
-        if '.sm30.' in shader:
-            return '-Tps_3_0'
-        else:
-            return '-Tps_5_1'
+        return '-Tps_3_0' if '.sm30.' in shader else '-Tps_5_1'
     elif '.comp' in shader:
         return '-Tcs_5_1'
     else:
@@ -291,11 +304,10 @@ def validate_shader_hlsl(shader, force_no_external_validation, paths):
         except OSError as oe:
             if (oe.errno != errno.ENOENT): # Ignore not found errors
                 print('Failed to run FXC.')
-                ignore_fxc = True
                 raise
             else:
                 print('Could not find FXC.')
-                ignore_fxc = True
+            ignore_fxc = True
         except subprocess.CalledProcessError:
             print('Failed compiling HLSL shader:', shader, 'with FXC.')
             raise RuntimeError('Failed compiling HLSL shader')
@@ -375,7 +387,7 @@ def cross_compile(shader, vulkan, spirv, invalid_spirv, eliminate, is_legacy, fl
     glsl_path = create_temporary(os.path.basename(shader))
 
     if vulkan or spirv:
-        vulkan_glsl_path = create_temporary('vk' + os.path.basename(shader))
+        vulkan_glsl_path = create_temporary(f'vk{os.path.basename(shader)}')
 
     spirv_cmd = [paths.spirv_as, '--target-env', 'vulkan1.1', '-o', spirv_path, shader]
     if '.preserve.' in shader:
@@ -413,7 +425,7 @@ def cross_compile(shader, vulkan, spirv, invalid_spirv, eliminate, is_legacy, fl
     spirv_cross_path = paths.spirv_cross
 
     # A shader might not be possible to make valid GLSL from, skip validation for this case.
-    if not ('nocompat' in glsl_path):
+    if 'nocompat' not in glsl_path:
         subprocess.check_call([spirv_cross_path, '--entry', 'main', '--output', glsl_path, spirv_path] + extra_args)
         validate_shader(glsl_path, False, paths)
     else:
@@ -453,39 +465,44 @@ def reference_path(directory, relpath, opt):
     return os.path.join(reference_dir, relpath)
 
 def regression_check_reflect(shader, json_file, args):
-    reference = reference_path(shader[0], shader[1], args.opt) + '.json'
+    reference = f'{reference_path(shader[0], shader[1], args.opt)}.json'
     joined_path = os.path.join(shader[0], shader[1])
     print('Reference shader reflection path:', reference)
     if os.path.exists(reference):
         actual = md5_for_file(json_file)
         expected = md5_for_file(reference)
-        if actual != expected:
-            if args.update:
-                print('Generated reflection json has changed for {}!'.format(reference))
-                # If we expect changes, update the reference file.
-                if os.path.exists(reference):
-                    remove_file(reference)
-                make_reference_dir(reference)
-                shutil.move(json_file, reference)
-            else:
-                print('Generated reflection json in {} does not match reference {}!'.format(json_file, reference))
-                with open(json_file, 'r') as f:
-                    print('')
-                    print('Generated:')
-                    print('======================')
-                    print(f.read())
-                    print('======================')
-                    print('')
-
-                # Otherwise, fail the test. Keep the shader file around so we can inspect.
-                if not args.keep:
-                    remove_file(json_file)
-
-                raise RuntimeError('Does not match reference')
-        else:
+        if actual == expected:
             remove_file(json_file)
+        elif args.update:
+            print(f'Generated reflection json has changed for {reference}!')
+            # If we expect changes, update the reference file.
+            if os.path.exists(reference):
+                remove_file(reference)
+            make_reference_dir(reference)
+            shutil.move(json_file, reference)
+        else:
+            print(
+                f'Generated reflection json in {json_file} does not match reference {reference}!'
+            )
+
+            with open(json_file, 'r') as f:
+                print('')
+                print('Generated:')
+                print('======================')
+                print(f.read())
+                print('======================')
+                print('')
+
+            # Otherwise, fail the test. Keep the shader file around so we can inspect.
+            if not args.keep:
+                remove_file(json_file)
+
+            raise RuntimeError('Does not match reference')
     else:
-        print('Found new shader {}. Placing generated source code in {}'.format(joined_path, reference))
+        print(
+            f'Found new shader {joined_path}. Placing generated source code in {reference}'
+        )
+
         make_reference_dir(reference)
         shutil.move(json_file, reference)
     
@@ -495,32 +512,34 @@ def regression_check(shader, glsl, args):
     print('Reference shader path:', reference)
 
     if os.path.exists(reference):
-        if md5_for_file(glsl) != md5_for_file(reference):
-            if args.update:
-                print('Generated source code has changed for {}!'.format(reference))
-                # If we expect changes, update the reference file.
-                if os.path.exists(reference):
-                    remove_file(reference)
-                make_reference_dir(reference)
-                shutil.move(glsl, reference)
-            else:
-                print('Generated source code in {} does not match reference {}!'.format(glsl, reference))
-                with open(glsl, 'r') as f:
-                    print('')
-                    print('Generated:')
-                    print('======================')
-                    print(f.read())
-                    print('======================')
-                    print('')
-
-                # Otherwise, fail the test. Keep the shader file around so we can inspect.
-                if not args.keep:
-                    remove_file(glsl)
-                raise RuntimeError('Does not match reference')
-        else:
+        if md5_for_file(glsl) == md5_for_file(reference):
             remove_file(glsl)
+        elif args.update:
+            print(f'Generated source code has changed for {reference}!')
+            # If we expect changes, update the reference file.
+            if os.path.exists(reference):
+                remove_file(reference)
+            make_reference_dir(reference)
+            shutil.move(glsl, reference)
+        else:
+            print(f'Generated source code in {glsl} does not match reference {reference}!')
+            with open(glsl, 'r') as f:
+                print('')
+                print('Generated:')
+                print('======================')
+                print(f.read())
+                print('======================')
+                print('')
+
+            # Otherwise, fail the test. Keep the shader file around so we can inspect.
+            if not args.keep:
+                remove_file(glsl)
+            raise RuntimeError('Does not match reference')
     else:
-        print('Found new shader {}. Placing generated source code in {}'.format(joined_path, reference))
+        print(
+            f'Found new shader {joined_path}. Placing generated source code in {reference}'
+        )
+
         make_reference_dir(reference)
         shutil.move(glsl, reference)
 
@@ -581,19 +600,16 @@ def test_shader(stats, shader, args, paths):
     if glsl:
         regression_check(shader, glsl, args)
     if vulkan_glsl:
-        regression_check((shader[0], shader[1] + '.vk'), vulkan_glsl, args)
+        regression_check((shader[0], f'{shader[1]}.vk'), vulkan_glsl, args)
 
     remove_file(spirv)
 
     if stats and (not vulkan) and (not is_spirv) and (not desktop):
         pristine_stats = get_shader_stats(joined_path)
 
-        a = []
-        a.append(shader[1])
-        for i in pristine_stats:
-            a.append(str(i))
-        for i in cross_stats:
-            a.append(str(i))
+        a = [shader[1]]
+        a.extend(str(i) for i in pristine_stats)
+        a.extend(str(i) for i in cross_stats)
         print(','.join(a), file = stats)
 
 def test_shader_msl(stats, shader, args, paths):
@@ -669,10 +685,10 @@ def test_shaders_helper(stats, backend, args):
     if args.parallel:
         pool = multiprocessing.Pool(multiprocessing.cpu_count())
 
-        results = []
-        for f in all_files:
-            results.append(pool.apply_async(test_shader_file,
-                args = (f, stats, args, backend)))
+        results = [
+            pool.apply_async(test_shader_file, args=(f, stats, args, backend))
+            for f in all_files
+        ]
 
         for res in results:
             error = res.get()

@@ -182,10 +182,9 @@ def inside_spirv_testsuite(testsuite_name):
     if not isinstance(cls.spirv_args, list):
       raise SpirvTestException('spirv_args needs to be a list')
     if not any(
-        [m.startswith(VALIDATE_METHOD_PREFIX) for m in get_all_methods(cls)]):
+        m.startswith(VALIDATE_METHOD_PREFIX) for m in get_all_methods(cls)):
       raise SpirvTestException('No check_*() methods found in the test case')
-    if not all(
-        [isinstance(v, (bool, str, list)) for v in get_all_variables(cls)]):
+    if not all(isinstance(v, (bool, str, list)) for v in get_all_variables(cls)):
       raise SpirvTestException(
           'expected_* variables are only allowed to be bool, str, or '
           'list type.')
@@ -212,8 +211,8 @@ class TestManager:
     """Call this to notify the manager of the results of a test run."""
     self.num_successes += 1 if success else 0
     self.num_failures += 0 if success else 1
-    counter_string = str(self.num_successes + self.num_failures) + '/' + str(
-        self.num_tests)
+    counter_string = (
+        f'{str(self.num_successes + self.num_failures)}/{str(self.num_tests)}')
     print('%-10s %-40s ' % (counter_string, test_case.test.name()) +
           ('Passed' if success else '-Failed-'))
     if not success:
